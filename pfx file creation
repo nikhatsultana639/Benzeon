@@ -1,0 +1,6 @@
+Digicert --> intermediatory
+ca-bundle --> inter and root
+domainname* --> leaf
+trusted root --> root
+copy the token from digicert(inter) and paste it in domainname.crt after leaf
+openssl pkcs12 -export -in your.crt -inkey yourkey.key -out yourcertificate.pfx
