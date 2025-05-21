@@ -1,0 +1,41 @@
+- script: |
+    whoami
+    if [ ! -d "/mnt" ]; then sudo mkdir /mnt; fi
+    sudo mkdir /mnt/blobfuse2
+    sudo chmod -R 777 /mnt/blobfuse2
+  displayName: 'Mount Blob Storage'
+
+- script: |
+    # sudo wget https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
+    # sudo dpkg -i packages-microsoft-prod.deb
+    # sudo apt-get update
+    # sudo apt-get install blobfuse2
+    # blobfuse2 --version
+    # id -u
+    sudo apt update
+      sudo apt install -y wget apt-transport-https ca-certificates
+
+      # Add Microsoft package repository for BlobFuse2
+      sudo wget https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+      sudo dpkg -i packages-microsoft-prod.deb
+
+      # Update package list and install required dependencies
+      sudo apt update
+      sudo apt install -y libfuse3-dev fuse3 blobfuse2
+
+      # Verify the installation
+      blobfuse2 --version || echo "BlobFuse2 installation failed"
+  displayName: 'Install BlobFuse'
+
+- script: |
+    sudo rm -rf /mnt/blobfuse2/*
+    sudo blobfuse2 mount /mnt/blobfuse2 --config-file=devops/config.yml --allow-other &
+    sleep 5  # Give time for mount operation to complete
+    # Change ownership of the mount to the current user
+    sudo chown $(whoami) /mnt/blobfuse2
+    sudo chmod 777 /mnt/blobfuse2
+
+    # Verify mount and permissions
+    df -h | grep /mnt/blobfuse2
+    ls -ld /mnt/blobfuse2
+  displayName: "Mount Azure Blob Storage with Correct Permissions"
