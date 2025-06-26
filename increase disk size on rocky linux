@@ -1,0 +1,138 @@
+Here is the **complete, from-scratch guide** for **expanding the root (/) filesystem on a Rocky Linux VM**, **after increasing the OS disk size from the Azure portal**.
+
+---
+
+## 🚀 Goal:
+
+You increased the OS disk size in Azure (e.g., from 30 GiB to 512 GiB). Now you want Rocky Linux to **use the full new size** for its root (`/`) filesystem.
+
+---
+
+## ✅ Step-by-Step Guide
+
+### 📌 Step 0: Prerequisites
+
+* You have already resized the OS disk in the Azure portal (e.g., 512 GiB).
+* Your VM is using **LVM** for root partition (common on Rocky Linux).
+
+---
+
+### 🔍 Step 1: Verify current disk and partitions
+
+Run:
+
+```bash
+lsblk
+```
+
+Look for output like:
+
+```
+sda       8:0   0  512G  0 disk
+├─sda1    8:1   0    2M  0 part
+├─sda2    8:2   0  100M  0 part /boot/efi
+├─sda3    8:3   0 1000M  0 part /boot
+└─sda4    8:4   0    9G  0 part
+  └─rocky-lvroot 253:0  0    9G  0 lvm  /
+```
+
+Here, `/dev/sda4` is the root volume, and it’s still small.
+
+---
+
+### 🛠️ Step 2: Resize the partition using `parted`
+
+1. Open parted:
+
+   ```bash
+   parted /dev/sda
+   ```
+
+2. In the `parted` prompt:
+
+   ```
+   resizepart 4 100%
+   ```
+
+   If prompted:
+
+   ```
+   Fix/Ignore? Fix
+   Partition number? 4
+   End?  [10.7GB]? 100%
+   ```
+
+3. Then:
+
+   ```
+   quit
+   ```
+
+---
+
+### 🔧 Step 3: Resize the Physical Volume
+
+```bash
+pvresize /dev/sda4
+```
+
+This allows LVM to detect and use the new space.
+
+---
+
+### 📦 Step 4: Extend the Logical Volume
+
+```bash
+lvextend -l +100%FREE /dev/mapper/rocky-lvroot
+```
+
+This extends your root logical volume to use all the newly available space.
+
+---
+
+### 📂 Step 5: Grow the Filesystem
+
+Because you're using XFS (as most Rocky systems do), run:
+
+```bash
+xfs_growfs /
+```
+
+---
+
+### 📊 Step 6: Verify
+
+Check the new size:
+
+```bash
+df -Th
+```
+
+You should now see `/` (root) with \~512 GiB available.
+
+---
+
+## ✅ Summary of Commands
+
+```bash
+# Optional: view current layout
+lsblk
+
+# Resize partition
+parted /dev/sda
+> resizepart 4 100%
+> Fix
+> 4
+> 100%
+> quit
+
+# Resize PV, LV, and filesystem
+pvresize /dev/sda4
+lvextend -l +100%FREE /dev/mapper/rocky-lvroot
+xfs_growfs /
+
+# Confirm
+df -Th
+```
+
+---
