@@ -1,0 +1,107 @@
+Got it 👍
+You want to switch **service-to-service communication** from plain `http://server1:port` → **secure** `https://server1.test.local:port`.
+
+This involves **three layers of configuration**:
+
+---
+
+## 🔑 1. **Server-side (SSL Termination)**
+
+Your service running on **`server1`** must:
+
+* Listen on `HTTPS` instead of (or in addition to) `HTTP`.
+* Have a valid **SSL certificate** bound to its endpoint.
+
+### Example: If you run Nginx/Apache as reverse proxy in front of the service:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name server1.test.local;
+
+    ssl_certificate     /etc/ssl/server1/certificate.crt;
+    ssl_certificate_key /etc/ssl/server1/private.key;
+    ssl_trusted_certificate /etc/ssl/server1/ca_bundle.crt;
+
+    location / {
+        proxy_pass http://localhost:8080;   # your actual app port
+    }
+}
+```
+
+Now your app runs internally on `http://localhost:8080` but externally it’s exposed as `https://server1.test.local:443`.
+
+---
+
+## 🏷️ 2. **DNS / Name Resolution**
+
+Since you want to hit `https://server1.test.local`, your calling service must resolve `server1.test.local` to the correct server’s IP.
+
+Options:
+
+* **DNS entry** (ideal) – Add `server1.test.local` in your DNS server pointing to the VM/container IP.
+* **/etc/hosts override** (quick fix):
+
+  ```bash
+  echo "10.0.0.5  server1.test.local" | sudo tee -a /etc/hosts
+  ```
+
+---
+
+## 🔐 3. **Client-side (Service consuming HTTPS)**
+
+Your **calling service** (the one hitting `https://server1.test.local:port`) must **trust the certificate** presented by `server1`.
+
+* If using a **public CA cert** → it’s already trusted.
+* If using an **internal/self-signed cert** → import the root CA into the client’s trust store:
+
+  * For Linux (system-wide):
+
+    ```bash
+    sudo cp ca.crt /usr/local/share/ca-certificates/server1-ca.crt
+    sudo update-ca-certificates
+    ```
+  * For apps (Java, Python, .NET, etc.), you may need to add the CA cert into their specific truststore.
+
+---
+
+## 🔧 4. **Firewall & Port Setup**
+
+* Ensure port `443` (or your chosen SSL port) is **open** on `server1`.
+* If you want to use a custom port (say `8443`), configure Nginx/Apache/Tomcat to listen on that:
+
+  ```nginx
+  listen 8443 ssl;
+  ```
+
+Then call the service as:
+
+```
+https://server1.test.local:8443
+```
+
+---
+
+## 🔄 5. **End-to-End Flow**
+
+1. Service A (client) calls → `https://server1.test.local:443`
+2. DNS/hosts resolves → `server1.test.local → 10.0.0.5`
+3. Service B (on `server1`) listens with SSL cert bound → `443`
+4. Client validates cert:
+
+   * Passes if trusted
+   * Fails with `SSL handshake error` if cert is self-signed and not trusted
+5. Connection secured ✅
+
+---
+
+⚡ So in short:
+
+* Configure **SSL listener** on server1 (Nginx/Apache or app itself).
+* Map `server1.test.local` → correct IP (DNS or `/etc/hosts`).
+* Ensure the **client trusts the certificate** (self-signed certs need CA install).
+* Use `https://server1.test.local:port` in your service config.
+
+---
+
+👉 Do you want me to give you **step-by-step commands for setting this up with Nginx reverse proxy** (most common), or are you running the app directly (like Java/.NET/Python) where SSL needs to be bound inside the app itself?
